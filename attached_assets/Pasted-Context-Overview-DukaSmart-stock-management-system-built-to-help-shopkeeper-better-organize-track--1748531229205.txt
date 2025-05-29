@@ -1,0 +1,168 @@
+Context Overview:
+DukaSmart stock management system built to help shopkeeper better organize, track, and monitor their inventory across different categories. The app is designed to work fully offline to accommodate environments with limited or inconsistent internet connectivity.
+
+
+
+Target Users:
+
+
+
+
+
+Admin (Shopkeeper): Manages products, categories, and reports. Records stock intake from warehouse.
+
+
+
+Employee: Handles product sales and stock movement (in/out).
+
+
+
+Core Functional Areas:
+
+
+
+
+
+Product Management
+
+
+
+
+
+Admin can add new products with image, name, price, initial stock, and assign them to a dynamic sub-category.
+
+
+
+Each product has a unique code (e.g., PHC001 for Phone Cases, WIG001 for Wigs).
+
+
+
+Category System
+
+
+
+
+
+Two-level category structure:
+
+
+
+
+
+Main Categories (e.g., Electronics, Fashion)
+
+
+
+Sub-Categories (e.g., Cameras, Phone Cases under Electronics; Wigs, Dresses under Fashion)
+
+
+
+Both Main Categories and Sub-Categories are dynamic and can be added or modified by the Admin.
+
+
+
+Purchase Recording (Warehouse Intake)
+
+
+
+
+
+Admin can record purchases made from the warehouse or supplier.
+
+
+
+Each purchase includes supplier name (optional), product details, quantity received, cost per unit, and timestamp.
+
+
+
+The system calculates and shows the total purchase amount for each record (e.g., 20 units × 1000 RWF = 20,000 RWF).
+
+
+
+If the same product is purchased again with a different price, the system keeps individual records for each purchase (purchase history), which supports stock valuation and cost tracking.
+
+
+
+Sales Recording
+
+
+
+
+
+Employee can record sales, select product, and quantity.
+
+
+
+Sales entry includes product image, name, price, quantity, and timestamp.
+
+
+
+Data is stored offline and can be synced if required in the future.
+
+
+
+Stock Movement Tracking
+
+
+
+
+
+Both Admin and Employees can record stock movement (In/Out).
+
+
+
+Movement entries are timestamped and linked to user role.
+
+
+
+Employee Account Management (Admin Only)
+
+
+
+
+
+Admin can create, update, and delete employee accounts.
+
+
+
+Admin assigns basic permissions to employees (e.g., Sale only, Sale + Stock In/Out).
+
+
+
+System ensures accountability by linking all sales and stock actions to specific employee accounts.
+
+
+
+Reporting (Admin Only)
+
+
+
+
+
+Weekly summaries of:
+
+
+
+
+
+Total sales by category
+
+
+
+Top-selling products
+
+
+
+Low stock alerts
+
+
+
+Stock received from warehouse
+
+
+
+Total purchase costs
+
+
+
+Export options for PDF or CSV can be explored.
