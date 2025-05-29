@@ -6,6 +6,11 @@ import {
   purchases,
   sales,
   stockMovements,
+  suppliers,
+  customers,
+  auditLogs,
+  alerts,
+  salesInvoices,
   type User,
   type UpsertUser,
   type MainCategory,
@@ -20,6 +25,16 @@ import {
   type InsertSale,
   type StockMovement,
   type InsertStockMovement,
+  type Supplier,
+  type InsertSupplier,
+  type Customer,
+  type InsertCustomer,
+  type AuditLog,
+  type InsertAuditLog,
+  type Alert,
+  type InsertAlert,
+  type SalesInvoice,
+  type InsertSalesInvoice,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, sql, lt } from "drizzle-orm";
@@ -67,28 +82,62 @@ export interface IStorage {
     lowStockCount: number;
     totalInventoryValue: number;
   }>;
+
+  // Enterprise features
+  // Suppliers
+  getSuppliers(): Promise<Supplier[]>;
+  createSupplier(supplier: InsertSupplier): Promise<Supplier>;
+  updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier>;
+
+  // Customers
+  getCustomers(): Promise<Customer[]>;
+  createCustomer(customer: InsertCustomer): Promise<Customer>;
+  updateCustomer(id: number, customer: Partial<InsertCustomer>): Promise<Customer>;
+
+  // Alerts
+  getAlerts(userId?: number): Promise<Alert[]>;
+  createAlert(alert: InsertAlert): Promise<Alert>;
+  markAlertAsRead(alertId: number): Promise<void>;
+
+  // Audit logs
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(limit?: number): Promise<AuditLog[]>;
+
+  // Sales Invoices
+  getSalesInvoices(): Promise<SalesInvoice[]>;
+  createSalesInvoice(invoice: InsertSalesInvoice): Promise<SalesInvoice>;
 }
 
 export class DatabaseStorage implements IStorage {
   // User operations
-  async getUser(id: string): Promise<User | undefined> {
+  async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUser(userData: Omit<UpsertUser, 'id'>): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
       .returning();
     return user;
+  }
+
+  async updateUserLastLogin(userId: number): Promise<void> {
+    await db
+      .update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, userId));
   }
 
   // Category operations
@@ -301,6 +350,86 @@ export class DatabaseStorage implements IStorage {
       lowStockCount: Number(lowStockCount),
       totalInventoryValue: Number(totalInventoryValue),
     };
+  }
+
+  // Enterprise features implementation
+  // Suppliers
+  async getSuppliers(): Promise<Supplier[]> {
+    return await db.select().from(suppliers).orderBy(asc(suppliers.name));
+  }
+
+  async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
+    const [newSupplier] = await db.insert(suppliers).values(supplier).returning();
+    return newSupplier;
+  }
+
+  async updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier> {
+    const [updatedSupplier] = await db
+      .update(suppliers)
+      .set(supplier)
+      .where(eq(suppliers.id, id))
+      .returning();
+    return updatedSupplier;
+  }
+
+  // Customers
+  async getCustomers(): Promise<Customer[]> {
+    return await db.select().from(customers).orderBy(asc(customers.name));
+  }
+
+  async createCustomer(customer: InsertCustomer): Promise<Customer> {
+    const [newCustomer] = await db.insert(customers).values(customer).returning();
+    return newCustomer;
+  }
+
+  async updateCustomer(id: number, customer: Partial<InsertCustomer>): Promise<Customer> {
+    const [updatedCustomer] = await db
+      .update(customers)
+      .set(customer)
+      .where(eq(customers.id, id))
+      .returning();
+    return updatedCustomer;
+  }
+
+  // Alerts
+  async getAlerts(userId?: number): Promise<Alert[]> {
+    if (userId) {
+      return await db.select().from(alerts)
+        .where(eq(alerts.userId, userId))
+        .orderBy(desc(alerts.createdAt));
+    }
+    return await db.select().from(alerts).orderBy(desc(alerts.createdAt));
+  }
+
+  async createAlert(alert: InsertAlert): Promise<Alert> {
+    const [newAlert] = await db.insert(alerts).values(alert).returning();
+    return newAlert;
+  }
+
+  async markAlertAsRead(alertId: number): Promise<void> {
+    await db.update(alerts).set({ isRead: true }).where(eq(alerts.id, alertId));
+  }
+
+  // Audit logs
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [newLog] = await db.insert(auditLogs).values(log).returning();
+    return newLog;
+  }
+
+  async getAuditLogs(limit: number = 100): Promise<AuditLog[]> {
+    return await db.select().from(auditLogs)
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(limit);
+  }
+
+  // Sales Invoices
+  async getSalesInvoices(): Promise<SalesInvoice[]> {
+    return await db.select().from(salesInvoices).orderBy(desc(salesInvoices.createdAt));
+  }
+
+  async createSalesInvoice(invoice: InsertSalesInvoice): Promise<SalesInvoice> {
+    const [newInvoice] = await db.insert(salesInvoices).values(invoice).returning();
+    return newInvoice;
   }
 }
 
