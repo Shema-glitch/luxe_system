@@ -20,11 +20,16 @@ export function useLogin() {
   
   return useMutation({
     mutationFn: async (credentials: LoginData) => {
-      return apiRequest("/api/auth/login", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(credentials),
         headers: { "Content-Type": "application/json" },
       });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Login failed");
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
@@ -37,11 +42,16 @@ export function useRegister() {
   
   return useMutation({
     mutationFn: async (userData: RegisterData) => {
-      return apiRequest("/api/auth/register", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         body: JSON.stringify(userData),
         headers: { "Content-Type": "application/json" },
       });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Registration failed");
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
@@ -54,9 +64,13 @@ export function useLogout() {
   
   return useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/auth/logout", {
+      const response = await fetch("/api/auth/logout", {
         method: "POST",
       });
+      if (!response.ok) {
+        throw new Error("Logout failed");
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.clear();
