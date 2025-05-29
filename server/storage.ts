@@ -25,9 +25,12 @@ import { db } from "./db";
 import { eq, desc, asc, and, sql, lt } from "drizzle-orm";
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  // User operations (required for traditional auth)
+  getUserById(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: Omit<UpsertUser, 'id'>): Promise<User>;
+  updateUserLastLogin(userId: number): Promise<void>;
 
   // Category operations
   getMainCategories(): Promise<MainCategory[]>;

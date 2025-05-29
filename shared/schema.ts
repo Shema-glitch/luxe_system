@@ -25,15 +25,19 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table (required for Replit Auth)
+// User storage table with traditional authentication
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().notNull(),
+  id: serial("id").primaryKey(),
+  username: varchar("username", { length: 50 }).notNull().unique(),
   email: varchar("email").unique(),
+  passwordHash: varchar("password_hash").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").notNull().default("employee"), // admin or employee
   permissions: jsonb("permissions").default([]), // array of permission strings
+  isActive: boolean("is_active").default(true),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -90,8 +94,78 @@ export const stockMovements = pgTable("stock_movements", {
   movementType: varchar("movement_type", { length: 10 }).notNull(), // 'in' or 'out'
   quantity: integer("quantity").notNull(),
   reason: varchar("reason", { length: 255 }),
-  performedBy: varchar("performed_by").notNull(),
+  performedBy: integer("performed_by").notNull(),
   timestamp: timestamp("timestamp").defaultNow(),
+});
+
+// Enterprise Features Tables
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  contactPerson: varchar("contact_person", { length: 255 }),
+  email: varchar("email"),
+  phone: varchar("phone", { length: 20 }),
+  address: text("address"),
+  website: varchar("website"),
+  taxId: varchar("tax_id", { length: 50 }),
+  paymentTerms: varchar("payment_terms"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email"),
+  phone: varchar("phone", { length: 20 }),
+  address: text("address"),
+  customerType: varchar("customer_type").default("individual"), // individual, business
+  taxId: varchar("tax_id", { length: 50 }),
+  creditLimit: decimal("credit_limit", { precision: 10, scale: 2 }).default("0"),
+  totalPurchases: decimal("total_purchases", { precision: 10, scale: 2 }).default("0"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  action: varchar("action").notNull(), // CREATE, UPDATE, DELETE, LOGIN, etc.
+  entityType: varchar("entity_type").notNull(), // products, sales, users, etc.
+  entityId: varchar("entity_id"),
+  oldData: jsonb("old_data"),
+  newData: jsonb("new_data"),
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export const salesInvoices = pgTable("sales_invoices", {
+  id: serial("id").primaryKey(),
+  invoiceNumber: varchar("invoice_number").notNull().unique(),
+  customerId: integer("customer_id"),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).default("0"),
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  paymentStatus: varchar("payment_status").default("pending"), // pending, paid, partial, overdue
+  paymentMethod: varchar("payment_method"), // cash, card, bank_transfer, etc.
+  notes: text("notes"),
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const alerts = pgTable("alerts", {
+  id: serial("id").primaryKey(),
+  type: varchar("type").notNull(), // low_stock, overdue_payment, system_error, etc.
+  title: varchar("title").notNull(),
+  message: text("message").notNull(),
+  severity: varchar("severity").default("info"), // info, warning, error, critical
+  isRead: boolean("is_read").default(false),
+  userId: integer("user_id"), // null for system-wide alerts
+  entityType: varchar("entity_type"),
+  entityId: varchar("entity_id"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Relations
@@ -124,7 +198,7 @@ export const purchasesRelations = relations(purchases, ({ one }) => ({
   }),
   purchasedByUser: one(users, {
     fields: [purchases.purchasedBy],
-    references: [users.id],
+    references: [users.username],
   }),
 }));
 
@@ -135,7 +209,7 @@ export const salesRelations = relations(sales, ({ one }) => ({
   }),
   soldByUser: one(users, {
     fields: [sales.soldBy],
-    references: [users.id],
+    references: [users.username],
   }),
 }));
 
@@ -146,6 +220,39 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   }),
   performedByUser: one(users, {
     fields: [stockMovements.performedBy],
+    references: [users.id],
+  }),
+}));
+
+export const customersRelations = relations(customers, ({ many }) => ({
+  salesInvoices: many(salesInvoices),
+}));
+
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
+  purchases: many(purchases),
+}));
+
+export const salesInvoicesRelations = relations(salesInvoices, ({ one }) => ({
+  customer: one(customers, {
+    fields: [salesInvoices.customerId],
+    references: [customers.id],
+  }),
+  createdByUser: one(users, {
+    fields: [salesInvoices.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const alertsRelations = relations(alerts, ({ one }) => ({
+  user: one(users, {
+    fields: [alerts.userId],
     references: [users.id],
   }),
 }));
@@ -186,6 +293,46 @@ export const insertStockMovementSchema = createInsertSchema(stockMovements).omit
   timestamp: true,
 });
 
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCustomerSchema = createInsertSchema(customers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSalesInvoiceSchema = createInsertSchema(salesInvoices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertAlertSchema = createInsertSchema(alerts).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Login schema for authentication
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export const registerSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  role: z.enum(["admin", "employee"]).default("employee"),
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -201,3 +348,15 @@ export type Sale = typeof sales.$inferSelect;
 export type InsertSale = z.infer<typeof insertSaleSchema>;
 export type StockMovement = typeof stockMovements.$inferSelect;
 export type InsertStockMovement = z.infer<typeof insertStockMovementSchema>;
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
+export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+export type SalesInvoice = typeof salesInvoices.$inferSelect;
+export type InsertSalesInvoice = z.infer<typeof insertSalesInvoiceSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type Alert = typeof alerts.$inferSelect;
+export type InsertAlert = z.infer<typeof insertAlertSchema>;
+export type LoginData = z.infer<typeof loginSchema>;
+export type RegisterData = z.infer<typeof registerSchema>;
