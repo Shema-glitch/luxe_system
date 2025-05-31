@@ -2,8 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
 import { AddProductModal } from "@/components/modals/add-product-modal";
 import { RecordSaleModal } from "@/components/modals/record-sale-modal";
 import { RecordPurchaseModal } from "@/components/modals/record-purchase-modal";
@@ -84,11 +82,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16 p-6">
+    <div className="space-y-6">
           {/* Dashboard Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card className="bg-white border-0 shadow-sm">
@@ -315,8 +309,6 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
-        </main>
-      </div>
 
       {/* Modals */}
       <AddProductModal 
