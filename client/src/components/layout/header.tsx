@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Store, User, LogOut } from "lucide-react";
+import { Store, User, LogOut, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,60 +19,55 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
-      <div className="px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+      <SidebarTrigger className="-ml-1" />
+      <div className="flex items-center justify-between w-full">
+        <h1 className="text-xl font-semibold text-gray-900">
+          DukaSmart
+        </h1>
+
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Store className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-gray-900">DukaSmart</h1>
-            </div>
             {user?.role === 'admin' && (
               <Badge variant="secondary" className="hidden sm:inline-flex bg-primary/10 text-primary">
                 Admin Access
               </Badge>
             )}
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            {/* Notification Dropdown */}
-            <NotificationDropdown />
-            
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-3 hover:bg-gray-50">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-sm font-medium text-gray-900">
-                      {user?.firstName || user?.email}
-                    </p>
-                    <p className="text-xs text-gray-500 capitalize">
-                      {user?.role || 'Employee'}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                    {user?.profileImageUrl ? (
-                      <img 
-                        src={user.profileImageUrl} 
-                        alt="Profile" 
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="h-4 w-4 text-gray-600" />
-                    )}
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+
+          {/* Notification Dropdown */}
+          <NotificationDropdown />
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center space-x-3 hover:bg-gray-50">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.firstName || user?.email}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {user?.role || 'Employee'}
+                  </p>
+                </div>
+                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                  {user?.profileImageUrl ? (
+                    <img 
+                      src={user.profileImageUrl} 
+                      alt="Profile" 
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-4 w-4 text-gray-600" />
+                  )}
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

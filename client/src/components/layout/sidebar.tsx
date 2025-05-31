@@ -1,6 +1,18 @@
+
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
 import {
   BarChart3,
   Package,
@@ -10,6 +22,7 @@ import {
   ArrowUpDown,
   Users,
   FileText,
+  Store,
 } from "lucide-react";
 
 interface NavItem {
@@ -64,7 +77,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+export function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
 
@@ -76,58 +89,70 @@ export function Sidebar() {
   const regularItems = filteredNavItems.filter(item => !item.adminOnly);
 
   return (
-    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-sm border-r border-gray-200 overflow-y-auto z-40">
-      <nav className="p-4 space-y-2">
-        {regularItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location === item.href;
-          
-          return (
-            <button
-              key={item.href}
-              onClick={() => setLocation(item.href)}
-              className={cn(
-                "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-lg w-full text-left transition-colors",
-                isActive
-                  ? "text-primary bg-primary/10"
-                  : "text-gray-700 hover:bg-gray-100"
-              )}
-            >
-              <Icon className="h-5 w-5" />
-              <span>{item.title}</span>
-            </button>
-          );
-        })}
+    <Sidebar>
+      <SidebarHeader>
+        <div className="flex items-center space-x-2 px-2 py-2">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <Store className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-bold">DukaSmart</span>
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {regularItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location === item.href;
+                
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      onClick={() => setLocation(item.href)}
+                      isActive={isActive}
+                      tooltip={item.title}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
         
         {adminOnlyItems.length > 0 && (
-          <div className="pt-4 border-t border-gray-200">
-            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Admin Only
-            </p>
-            
-            {adminOnlyItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => setLocation(item.href)}
-                  className={cn(
-                    "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-lg w-full text-left transition-colors",
-                    isActive
-                      ? "text-primary bg-primary/10"
-                      : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span>{item.title}</span>
-                </button>
-              );
-            })}
-          </div>
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin Only</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminOnlyItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location === item.href;
+                  
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        onClick={() => setLocation(item.href)}
+                        isActive={isActive}
+                        tooltip={item.title}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
-      </nav>
-    </aside>
+      </SidebarContent>
+    </Sidebar>
   );
 }
+
+// Keep the old export for backward compatibility
+export { AppSidebar as Sidebar };
