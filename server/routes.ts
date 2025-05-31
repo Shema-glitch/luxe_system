@@ -11,6 +11,19 @@ import {
   insertSaleSchema,
   insertStockMovementSchema,
 } from "@shared/schema";
+import { Request, Response } from "express";
+import { db } from "./db";
+import { products, categories, sales, purchases, stockMovements, users } from "../shared/schema";
+import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
+import { z } from "zod";
+import { 
+  getNotifications, 
+  markNotificationAsRead, 
+  dismissNotification, 
+  markAllAsRead, 
+  executeNotificationAction,
+  addNotification 
+} from "./notifications";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup session middleware
@@ -21,7 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const loginData = loginSchema.parse(req.body);
       const user = await authenticateUser(loginData);
-      
+
       if (!user) {
         return res.status(401).json({ message: "Invalid username or password" });
       }
@@ -46,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const registerData = registerSchema.parse(req.body);
       const user = await registerUser(registerData);
-      
+
       if (!user) {
         return res.status(400).json({ message: "Registration failed" });
       }
@@ -261,8 +274,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalAmount: Number(saleData.salePrice) * saleData.quantitySold,
       };
       const newSale = await storage.createSale(sale);
-      res.json(newSale);
-    } catch (error) {
+      
+    try {
+    const result = await db.insert(sales).values({
+      productId: Number(saleData.productId),
+      quantity: Number(saleData.quantitySold),
+      unitPrice: Number(saleData.salePrice),
+      totalAmount: Number(saleData.quantitySold) * Number(saleData.salePrice),
+      employeeId: req.user!.id,
+      createdAt: new Date()
+    }).returning();
+
+    // Update product stock
+    await db.update(products)
+      .set({ 
+        stock: sql`${products.stock} - ${saleData.quantitySold}`,
+        updatedAt: new Date()
+      })
+      .where(eq(products.id, Number(saleData.productId)));
+
+    // Get product details for notification
+    const [product] = await db.select().from(products).where(eq(products.id, Number(saleData.productId)));
+
+    // Add new sale notification
+    addNotification(
+      'new_sale',
+      'New Sale Recorded',
+      `Sale of ${product.name} for $${(Number(saleData.quantitySold) * Number(saleData.salePrice)).toFixed(2)} by ${req.user!.firstName || req.user!.email}`,
+      { 
+        saleId: result[0].id, 
+        productName: product.name, 
+        amount: Number(saleData.quantitySold) * Number(saleData.salePrice), 
+        employee: req.user!.firstName || req.user!.email 
+      }
+    );
+
+    // Check if stock is low after sale
+    if (product.stock - Number(saleData.quantitySold) <= 5) {
+      addNotification(
+        'low_stock',
+        'Low Stock Alert',
+        `${product.name} is running low on stock (${product.stock - Number(saleData.quantitySold)} units remaining)`,
+        { 
+          productId: product.id, 
+          productName: product.name, 
+          currentStock: product.stock - Number(saleData.quantitySold), 
+          minStock: 5 
+        }
+      );
+    }
+
+    res.json(result[0]);
+  } catch (error) {
       console.error("Error creating sale:", error);
       res.status(500).json({ message: "Failed to create sale" });
     }
@@ -293,6 +356,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create stock movement" });
     }
   });
+
+  // Reports
+  //app.get("/api/reports/sales", getSalesReport);
+  //app.get("/api/reports/inventory", getInventoryReport);
+  //app.get("/api/reports/low-stock", getLowStockReport);
+
+  // Notifications
+  app.get("/api/notifications", getNotifications);
+  app.patch("/api/notifications/:id/read", markNotificationAsRead);
+  app.delete("/api/notifications/:id", dismissNotification);
+  app.patch("/api/notifications/mark-all-read", markAllAsRead);
+  app.post("/api/notifications/:id/action", executeNotificationAction);
 
   const httpServer = createServer(app);
   return httpServer;

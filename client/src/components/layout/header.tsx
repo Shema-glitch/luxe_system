@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Store, User, LogOut } from "lucide-react";
+import { Store, User, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
@@ -8,14 +8,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
+import { NotificationDropdown } from "@/components/ui/notification-dropdown";
 
 export function Header() {
   const { user } = useAuth();
-
-  const { data: lowStockProducts = [] } = useQuery({
-    queryKey: ["/api/products/low-stock"],
-  });
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -40,13 +36,8 @@ export function Header() {
           </div>
           
           <div className="flex items-center space-x-4">
-            {/* Notification Bell */}
-            <Button variant="ghost" size="sm" className="relative text-gray-400 hover:text-gray-500">
-              <Bell className="h-5 w-5" />
-              {lowStockProducts.length > 0 && (
-                <span className="absolute -top-1 -right-1 block h-2 w-2 rounded-full bg-red-500" />
-              )}
-            </Button>
+            {/* Notification Dropdown */}
+            <NotificationDropdown />
             
             {/* User Menu */}
             <DropdownMenu>
