@@ -76,7 +76,7 @@ export function Sidebar() {
   const regularItems = filteredNavItems.filter(item => !item.adminOnly);
 
   return (
-    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-sm border-r border-gray-200 overflow-y-auto z-40"></aside>
+    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-sm border-r border-gray-200 overflow-y-auto z-40">
       <nav className="p-4 space-y-2">
         {regularItems.map((item) => {
           const Icon = item.icon;
