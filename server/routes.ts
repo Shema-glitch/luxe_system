@@ -268,64 +268,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/sales', requireAuth, async (req: any, res) => {
     try {
       const saleData = insertSaleSchema.parse(req.body);
-      const sale = {
-        ...saleData,
-        soldBy: req.user.claims.sub,
-        totalAmount: Number(saleData.salePrice) * saleData.quantitySold,
-      };
-      const newSale = await storage.createSale(sale);
-      
-    try {
-    const result = await db.insert(sales).values({
-      productId: Number(saleData.productId),
-      quantity: Number(saleData.quantitySold),
-      unitPrice: Number(saleData.salePrice),
-      totalAmount: Number(saleData.quantitySold) * Number(saleData.salePrice),
-      employeeId: req.user!.id,
-      createdAt: new Date()
-    }).returning();
 
-    // Update product stock
-    await db.update(products)
-      .set({ 
-        stock: sql`${products.stock} - ${saleData.quantitySold}`,
-        updatedAt: new Date()
-      })
-      .where(eq(products.id, Number(saleData.productId)));
+      const result = await db.insert(sales).values({
+        productId: Number(saleData.productId),
+        quantity: Number(saleData.quantitySold),
+        unitPrice: Number(saleData.salePrice),
+        totalAmount: Number(saleData.quantitySold) * Number(saleData.salePrice),
+        employeeId: req.user!.id,
+        createdAt: new Date()
+      }).returning();
 
-    // Get product details for notification
-    const [product] = await db.select().from(products).where(eq(products.id, Number(saleData.productId)));
+      // Update product stock
+      await db.update(products)
+        .set({ 
+          stock: sql`${products.stock} - ${saleData.quantitySold}`,
+          updatedAt: new Date()
+        })
+        .where(eq(products.id, Number(saleData.productId)));
 
-    // Add new sale notification
-    addNotification(
-      'new_sale',
-      'New Sale Recorded',
-      `Sale of ${product.name} for $${(Number(saleData.quantitySold) * Number(saleData.salePrice)).toFixed(2)} by ${req.user!.firstName || req.user!.email}`,
-      { 
-        saleId: result[0].id, 
-        productName: product.name, 
-        amount: Number(saleData.quantitySold) * Number(saleData.salePrice), 
-        employee: req.user!.firstName || req.user!.email 
-      }
-    );
+      // Get product details for notification
+      const [product] = await db.select().from(products).where(eq(products.id, Number(saleData.productId)));
 
-    // Check if stock is low after sale
-    if (product.stock - Number(saleData.quantitySold) <= 5) {
+      // Add new sale notification
       addNotification(
-        'low_stock',
-        'Low Stock Alert',
-        `${product.name} is running low on stock (${product.stock - Number(saleData.quantitySold)} units remaining)`,
+        'new_sale',
+        'New Sale Recorded',
+        `Sale of ${product.name} for $${(Number(saleData.quantitySold) * Number(saleData.salePrice)).toFixed(2)} by ${req.user!.firstName || req.user!.email}`,
         { 
-          productId: product.id, 
+          saleId: result[0].id, 
           productName: product.name, 
-          currentStock: product.stock - Number(saleData.quantitySold), 
-          minStock: 5 
+          amount: Number(saleData.quantitySold) * Number(saleData.salePrice), 
+          employee: req.user!.firstName || req.user!.email 
         }
       );
-    }
 
-    res.json(result[0]);
-  } catch (error) {
+      // Check if stock is low after sale
+      if (product.stock - Number(saleData.quantitySold) <= 5) {
+        addNotification(
+          'low_stock',
+          'Low Stock Alert',
+          `${product.name} is running low on stock (${product.stock - Number(saleData.quantitySold)} units remaining)`,
+          { 
+            productId: product.id, 
+            productName: product.name, 
+            currentStock: product.stock - Number(saleData.quantitySold), 
+            minStock: 5 
+          }
+        );
+      }
+
+      res.json(result[0]);
+    } catch (error) {
       console.error("Error creating sale:", error);
       res.status(500).json({ message: "Failed to create sale" });
     }
