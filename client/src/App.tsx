@@ -27,24 +27,22 @@ function Router() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
-          <div className="p-6">
-            <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/products" component={Products} />
-              <Route path="/categories" component={Categories} />
-              <Route path="/sales" component={Sales} />
-              <Route path="/purchases" component={Purchases} />
-              <Route path="/stock-movement" component={StockMovement} />
-              <Route path="/employees" component={Employees} />
-              <Route path="/reports" component={Reports} />
-              <Route component={NotFound} />
-            </Switch>
-          </div>
-        </main>
-      </div>
+      <Sidebar />
+      <main className="ml-64 pt-16 min-h-screen">
+        <div className="p-6">
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/products" component={Products} />
+            <Route path="/categories" component={Categories} />
+            <Route path="/sales" component={Sales} />
+            <Route path="/purchases" component={Purchases} />
+            <Route path="/stock-movement" component={StockMovement} />
+            <Route path="/employees" component={Employees} />
+            <Route path="/reports" component={Reports} />
+            <Route component={NotFound} />
+          </Switch>
+        </div>
+      </main>
     </div>
   );
 }
