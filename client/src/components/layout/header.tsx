@@ -22,11 +22,7 @@ export function Header() {
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
       <div className="flex items-center justify-between w-full">
-        <h1 className="text-xl font-semibold text-gray-900">
-          DukaSmart
-        </h1>
-
-          <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4">
             {user?.role === 'admin' && (
               <Badge variant="secondary" className="hidden sm:inline-flex bg-primary/10 text-primary">
                 Admin Access
@@ -69,7 +65,6 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
     </header>
   );
 }
