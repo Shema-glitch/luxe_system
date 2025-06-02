@@ -10,8 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
 import { 
   FileText, 
   Download, 
@@ -89,9 +87,7 @@ export default function Reports() {
   if (user?.role !== "admin") {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
         <div className="flex">
-          <Sidebar />
           <main className="flex-1 ml-64 pt-16 p-6">
             <Card>
               <CardContent className="p-6 text-center">
@@ -180,24 +176,22 @@ export default function Reports() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
       <div className="flex">
-        <Sidebar />
         <main className="flex-1 ml-64 pt-16 p-6">
           {/* Page Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-              <p className="text-gray-600">Comprehensive business insights and analytics</p>
+              <p className="text-gray-600">View and analyze your business data</p>
             </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" className="text-gray-600">
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" className="flex items-center">
                 <Calendar className="h-4 w-4 mr-2" />
-                Last 7 Days
+                Last 30 Days
               </Button>
-              <Button variant="outline" className="text-gray-600">
+              <Button className="bg-primary hover:bg-primary/90 flex items-center">
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                Export Report
               </Button>
             </div>
           </div>

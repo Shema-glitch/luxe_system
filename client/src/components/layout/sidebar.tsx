@@ -1,158 +1,146 @@
-
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useLocation } from "wouter";
+import { useSidebar } from "@/contexts/sidebar-context";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-} from "@/components/ui/sidebar";
-import {
-  BarChart3,
+  LayoutDashboard,
   Package,
   Tags,
   ShoppingCart,
-  Truck,
-  ArrowUpDown,
-  Users,
-  FileText,
   Store,
+  ArrowLeftRight,
+  Users,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  adminOnly?: boolean;
-}
-
-const navItems: NavItem[] = [
+const navigationItems = [
   {
-    title: "Dashboard",
+    name: "Dashboard",
     href: "/",
-    icon: BarChart3,
+    icon: LayoutDashboard,
+    show: true, // Everyone can see dashboard
   },
   {
-    title: "Products",
+    name: "Products",
     href: "/products",
     icon: Package,
+    show: true, // Everyone can see products
   },
   {
-    title: "Categories",
+    name: "Categories",
     href: "/categories",
     icon: Tags,
+    show: true, // Everyone can see categories
   },
   {
-    title: "Sales",
+    name: "Sales",
     href: "/sales",
     icon: ShoppingCart,
+    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("sales"),
   },
   {
-    title: "Purchases",
+    name: "Purchases",
     href: "/purchases",
-    icon: Truck,
+    icon: Store,
+    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("purchases"),
   },
   {
-    title: "Stock Movement",
+    name: "Stock Movement",
     href: "/stock-movement",
-    icon: ArrowUpDown,
+    icon: ArrowLeftRight,
+    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("stock_in"),
   },
   {
-    title: "Employees",
+    name: "Employees",
     href: "/employees",
     icon: Users,
-    adminOnly: true,
+    show: (user: any) => user?.role === "admin",
   },
   {
-    title: "Reports",
+    name: "Reports",
     href: "/reports",
-    icon: FileText,
-    adminOnly: true,
+    icon: BarChart3,
+    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("view_reports"),
   },
 ];
 
-export function AppSidebar() {
-  const [location, setLocation] = useLocation();
+export function Sidebar() {
+  const { isCollapsed, toggleSidebar } = useSidebar();
+  const location = useLocation();
   const { user } = useAuth();
 
-  const filteredNavItems = navItems.filter(item => 
-    !item.adminOnly || user?.role === 'admin'
-  );
-
-  const adminOnlyItems = filteredNavItems.filter(item => item.adminOnly);
-  const regularItems = filteredNavItems.filter(item => !item.adminOnly);
+  // Filter navigation items based on user role and permissions
+  const navigation = navigationItems.filter((item) => {
+    if (typeof item.show === "function") {
+      return item.show(user);
+    }
+    return item.show;
+  });
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <div className="flex items-center space-x-2 px-2 py-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Store className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-lg font-bold">DukaSmart</span>
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {regularItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location === item.href;
-                
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      onClick={() => setLocation(item.href)}
-                      isActive={isActive}
-                      tooltip={item.title}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        
-        {adminOnlyItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Admin Only</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminOnlyItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = location === item.href;
-                  
-                  return (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton
-                        onClick={() => setLocation(item.href)}
-                        isActive={isActive}
-                        tooltip={item.title}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+    <div
+      className={cn(
+        "fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r transition-all duration-300",
+        isCollapsed && "w-20"
+      )}
+    >
+      <div className="flex h-16 items-center justify-between px-4 border-b">
+        {!isCollapsed && (
+          <h1 className="text-xl font-semibold text-gray-900">Inventory</h1>
         )}
-      </SidebarContent>
-    </Sidebar>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          className="ml-auto"
+        >
+          {isCollapsed ? (
+            <ChevronRight className="h-5 w-5" />
+          ) : (
+            <ChevronLeft className="h-5 w-5" />
+          )}
+        </Button>
+      </div>
+
+      <nav className="space-y-1 px-2 py-4">
+        {navigation.map((item) => {
+          const isActive = location.pathname === item.href;
+          return (
+            <Tooltip key={item.name}>
+              <TooltipTrigger asChild>
+                <Link
+                  to={item.href}
+                  className={cn(
+                    "group flex items-center rounded-md px-3 py-2 text-sm font-medium",
+                    isActive
+                      ? "bg-gray-100 text-gray-900"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <item.icon
+                    className={cn(
+                      "h-5 w-5 flex-shrink-0",
+                      isActive ? "text-gray-900" : "text-gray-400 group-hover:text-gray-900"
+                    )}
+                  />
+                  {!isCollapsed && (
+                    <span className="ml-3">{item.name}</span>
+                  )}
+                </Link>
+              </TooltipTrigger>
+              {isCollapsed && (
+                <TooltipContent side="right">
+                  {item.name}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
-
-// Keep the old export for backward compatibility
-export { AppSidebar as Sidebar };

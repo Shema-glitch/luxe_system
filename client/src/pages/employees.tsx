@@ -12,8 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
 import { AddEmployeeModal } from "@/components/modals/add-employee-modal";
 import { 
   Users, 
@@ -42,25 +40,10 @@ export default function Employees() {
   const [searchQuery, setSearchQuery] = useState("");
   const { user } = useAuth();
 
-  // For now, we'll show current users data until we implement proper employee management
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["/api/employees"],
-    enabled: false, // Disable for now since we don't have this endpoint yet
+    enabled: user?.role === "admin",
   });
-
-  // Mock data showing current user as example
-  const currentUserAsEmployee: Employee = {
-    id: user?.id || "",
-    email: user?.email || "",
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    role: user?.role || "admin",
-    permissions: user?.permissions || [],
-    createdAt: new Date().toISOString(),
-    profileImageUrl: user?.profileImageUrl,
-  };
-
-  const displayEmployees = employees.length > 0 ? employees : [currentUserAsEmployee];
 
   const formatDateTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleDateString();
@@ -77,22 +60,20 @@ export default function Employees() {
     return permissions.map(permission => permissionLabels[permission] || permission);
   };
 
-  const filteredEmployees = displayEmployees.filter(employee =>
+  const filteredEmployees = employees.filter(employee =>
     employee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     employee.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     employee.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const adminCount = displayEmployees.filter(emp => emp.role === "admin").length;
-  const employeeCount = displayEmployees.filter(emp => emp.role === "employee").length;
+  const adminCount = employees.filter(emp => emp.role === "admin").length;
+  const employeeCount = employees.filter(emp => emp.role === "employee").length;
 
   // Only show this page to admins
   if (user?.role !== "admin") {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
         <div className="flex">
-          <Sidebar />
           <main className="flex-1 ml-64 pt-16 p-6">
             <Card>
               <CardContent className="p-6 text-center">
@@ -109,199 +90,176 @@ export default function Employees() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16 p-6">
-          {/* Page Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
-              <p className="text-gray-600">Manage employee accounts and permissions</p>
-            </div>
-            <Button onClick={() => setShowAddEmployee(true)} className="bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Employee
-            </Button>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <Users className="h-8 w-8 text-blue-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{displayEmployees.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <Shield className="h-8 w-8 text-purple-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Administrators</p>
-                    <p className="text-2xl font-bold text-gray-900">{adminCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <UserCheck className="h-8 w-8 text-green-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Employees</p>
-                    <p className="text-2xl font-bold text-gray-900">{employeeCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <Clock className="h-8 w-8 text-orange-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Active Today</p>
-                    <p className="text-2xl font-bold text-gray-900">1</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Notice about employee management */}
-          <Card className="mb-6 border-l-4 border-l-blue-500">
-            <CardContent className="p-4">
-              <div className="flex items-start space-x-3">
-                <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                  <h3 className="font-medium text-gray-900">Employee Management</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Employee accounts are managed through the authentication system. 
-                    Currently showing your admin account as an example. 
-                    Future versions will include full employee management capabilities.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Employees Table */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Team Members</CardTitle>
-                <div className="relative max-w-sm">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search employees..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8">Loading employees...</div>
-              ) : filteredEmployees.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  {searchQuery ? "No employees found matching your search" : "No employees found."}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Permissions</TableHead>
-                        <TableHead>Joined</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredEmployees.map((employee) => {
-                        const fullName = `${employee.firstName || ""} ${employee.lastName || ""}`.trim();
-                        const permissions = getPermissionBadges(employee.permissions || []);
-                        
-                        return (
-                          <TableRow key={employee.id}>
-                            <TableCell>
-                              <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                  {employee.profileImageUrl ? (
-                                    <img 
-                                      src={employee.profileImageUrl} 
-                                      alt={fullName}
-                                      className="w-10 h-10 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <User className="h-5 w-5 text-gray-600" />
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900">
-                                    {fullName || "No name provided"}
-                                  </p>
-                                  <p className="text-sm text-gray-500">ID: {employee.id}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-gray-900">{employee.email}</span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge 
-                                variant={employee.role === "admin" ? "default" : "secondary"}
-                                className={employee.role === "admin" ? "bg-purple-100 text-purple-800" : ""}
-                              >
-                                {employee.role === "admin" ? "Administrator" : "Employee"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {permissions.length > 0 ? (
-                                  permissions.map((permission, index) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      {permission}
-                                    </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-gray-400 text-sm">All permissions</span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600">
-                                {formatDateTime(employee.createdAt)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                Active
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </main>
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
+          <p className="text-gray-600">Manage employee accounts and permissions</p>
+        </div>
+        <Button onClick={() => setShowAddEmployee(true)} className="bg-primary hover:bg-primary/90">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Employee
+        </Button>
       </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Users</p>
+                <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Shield className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Administrators</p>
+                <p className="text-2xl font-bold text-gray-900">{adminCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <UserCheck className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Employees</p>
+                <p className="text-2xl font-bold text-gray-900">{employeeCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 text-orange-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active Today</p>
+                <p className="text-2xl font-bold text-gray-900">1</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Employees Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Team Members</CardTitle>
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search employees..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">Loading employees...</div>
+          ) : filteredEmployees.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              {searchQuery ? "No employees found matching your search" : "No employees found."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Permissions</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredEmployees.map((employee) => {
+                    const fullName = `${employee.firstName || ""} ${employee.lastName || ""}`.trim();
+                    const permissions = getPermissionBadges(employee.permissions || []);
+                    
+                    return (
+                      <TableRow key={employee.id}>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                              {employee.profileImageUrl ? (
+                                <img 
+                                  src={employee.profileImageUrl} 
+                                  alt={fullName}
+                                  className="w-10 h-10 rounded-full object-cover"
+                                />
+                              ) : (
+                                <User className="h-5 w-5 text-gray-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {fullName || "No name provided"}
+                              </p>
+                              <p className="text-sm text-gray-500">ID: {employee.id}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-900">{employee.email}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={employee.role === "admin" ? "default" : "secondary"}
+                            className={employee.role === "admin" ? "bg-purple-100 text-purple-800" : ""}
+                          >
+                            {employee.role === "admin" ? "Administrator" : "Employee"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {permissions.length > 0 ? (
+                              permissions.map((permission, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {permission}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-gray-400 text-sm">All permissions</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {formatDateTime(employee.createdAt)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            Active
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add Employee Modal */}
       <AddEmployeeModal 

@@ -40,8 +40,22 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
-  app.use(vite.middlewares);
+  // Only use Vite middleware for non-API routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      next();
+    } else {
+      vite.middlewares(req, res, next);
+    }
+  });
+
+  // Handle client-side routing
   app.use("*", async (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+
     const url = req.originalUrl;
 
     try {

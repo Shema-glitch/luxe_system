@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { getSession, requireAuth, requireAdmin, authenticateUser, registerUser } from "./auth";
+import { getSession, requireAuth, requireAdmin, requirePermission, authenticateUser, registerUser } from "./auth";
 import { loginSchema, registerSchema } from "@shared/schema";
 import {
   insertMainCategorySchema,
@@ -39,7 +39,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid username or password" });
       }
 
+      // Set session
       req.session.userId = user.id;
+      
+      // Send user data without sensitive information
       res.json({ 
         id: user.id,
         username: user.username,
@@ -51,7 +54,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Login error:", error);
-      res.status(400).json({ message: "Invalid request data" });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
@@ -64,7 +70,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Registration failed" });
       }
 
+      // Set session
       req.session.userId = user.id;
+
+      // Send user data without sensitive information
       res.status(201).json({
         id: user.id,
         username: user.username,
@@ -76,12 +85,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Registration error:", error);
-      res.status(400).json({ message: error.message || "Registration failed" });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+      }
+      res.status(500).json({ message: error.message || "Registration failed" });
     }
   });
 
   app.get('/api/auth/user', requireAuth, async (req: any, res) => {
     try {
+      // Send user data without sensitive information
       res.json({
         id: req.user.id,
         username: req.user.username,
@@ -100,10 +113,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/logout', (req, res) => {
     req.session.destroy((err) => {
       if (err) {
+        console.error("Logout error:", err);
         return res.status(500).json({ message: "Could not log out" });
       }
+      res.clearCookie('connect.sid'); // Clear the session cookie
       res.json({ message: "Logged out successfully" });
     });
+  });
+
+  // Employee management routes
+  app.get('/api/employees', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const allUsers = await db.select().from(users);
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      res.status(500).json({ message: "Failed to fetch employees" });
+    }
+  });
+
+  app.post('/api/employees', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const employeeData = registerSchema.parse(req.body);
+      const user = await registerUser(employeeData);
+
+      if (!user) {
+        return res.status(400).json({ message: "Failed to create employee" });
+      }
+
+      res.status(201).json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        permissions: user.permissions
+      });
+    } catch (error) {
+      console.error("Error creating employee:", error);
+      res.status(400).json({ message: error.message || "Failed to create employee" });
+    }
   });
 
   // Dashboard routes
@@ -229,22 +279,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/purchases', requireAuth, async (req: any, res) => {
     try {
-      const purchaseData = insertPurchaseSchema.parse(req.body);
-      const purchase = {
-        ...purchaseData,
-        purchasedBy: req.user.claims.sub,
-        totalCost: Number(purchaseData.costPerUnit) * purchaseData.quantityReceived,
-      };
-      const newPurchase = await storage.createPurchase(purchase);
-      res.json(newPurchase);
+      const purchaseData = insertPurchaseSchema.parse({
+        productId: Number(req.body.productId),
+        quantityReceived: Number(req.body.quantityReceived),
+        costPerUnit: req.body.costPerUnit,
+        totalCost: (Number(req.body.quantityReceived) * Number(req.body.costPerUnit)).toString(),
+        purchasedBy: req.user.username || req.user.email,
+        supplierName: req.body.supplierName
+      });
+
+      const result = await db.insert(purchases).values({
+        productId: purchaseData.productId,
+        quantityReceived: purchaseData.quantityReceived,
+        costPerUnit: purchaseData.costPerUnit,
+        totalCost: purchaseData.totalCost,
+        purchasedBy: purchaseData.purchasedBy,
+        supplierName: purchaseData.supplierName,
+        timestamp: new Date()
+      }).returning();
+
+      // Update product stock
+      await db.update(products)
+        .set({ 
+          stockQuantity: sql`${products.stockQuantity} + ${purchaseData.quantityReceived}`,
+          updatedAt: new Date()
+        })
+        .where(eq(products.id, purchaseData.productId));
+
+      // Get product details for notification
+      const [product] = await db.select().from(products).where(eq(products.id, purchaseData.productId));
+
+      // Add new purchase notification
+      addNotification(
+        'new_purchase',
+        'New Purchase Recorded',
+        `Purchase of ${product.name} for $${purchaseData.totalCost} by ${purchaseData.purchasedBy}`,
+        { 
+          purchaseId: result[0].id, 
+          productName: product.name, 
+          amount: purchaseData.totalCost, 
+          employee: purchaseData.purchasedBy 
+        }
+      );
+
+      res.json(result[0]);
     } catch (error) {
       console.error("Error creating purchase:", error);
       res.status(500).json({ message: "Failed to create purchase" });
     }
   });
 
-  // Sale routes
-  app.get('/api/sales', requireAuth, async (req, res) => {
+  // Stock movement routes
+  app.get('/api/stock-movements', requireAuth, requirePermission("stock_in"), async (req, res) => {
+    try {
+      const movements = await storage.getStockMovements();
+      res.json(movements);
+    } catch (error) {
+      console.error("Error fetching stock movements:", error);
+      res.status(500).json({ message: "Failed to fetch stock movements" });
+    }
+  });
+
+  app.post('/api/stock-movements', requireAuth, requirePermission("stock_in"), async (req: any, res) => {
+    try {
+      const movementData = insertStockMovementSchema.parse({
+        productId: Number(req.body.productId),
+        movementType: req.body.movementType,
+        quantity: Number(req.body.quantity),
+        reason: req.body.reason,
+        performedBy: req.user.id
+      });
+
+      // Check if enough stock is available for 'out' movements
+      if (movementData.movementType === 'out') {
+        const [product] = await db.select().from(products).where(eq(products.id, movementData.productId));
+        if (!product || product.stockQuantity < movementData.quantity) {
+          return res.status(400).json({ message: "Insufficient stock available" });
+        }
+      }
+
+      const result = await db.insert(stockMovements).values({
+        productId: movementData.productId,
+        movementType: movementData.movementType,
+        quantity: movementData.quantity,
+        reason: movementData.reason,
+        performedBy: movementData.performedBy,
+        timestamp: new Date()
+      }).returning();
+
+      // Update product stock
+      await db.update(products)
+        .set({ 
+          stockQuantity: movementData.movementType === 'in' 
+            ? sql`${products.stockQuantity} + ${movementData.quantity}`
+            : sql`${products.stockQuantity} - ${movementData.quantity}`,
+          updatedAt: new Date()
+        })
+        .where(eq(products.id, movementData.productId));
+
+      // Get product details for notification
+      const [product] = await db.select().from(products).where(eq(products.id, movementData.productId));
+
+      // Add stock movement notification
+      addNotification(
+        'stock_movement',
+        'Stock Movement Recorded',
+        `${movementData.movementType === 'in' ? 'Added' : 'Removed'} ${movementData.quantity} units of ${product.name} by ${req.user.username || req.user.email}`,
+        { 
+          movementId: result[0].id, 
+          productName: product.name, 
+          quantity: movementData.quantity,
+          type: movementData.movementType,
+          employee: req.user.username || req.user.email 
+        }
+      );
+
+      // Check if stock is low after movement
+      if (product.stockQuantity + (movementData.movementType === 'in' ? movementData.quantity : -movementData.quantity) <= 5) {
+        addNotification(
+          'low_stock',
+          'Low Stock Alert',
+          `${product.name} is running low on stock (${product.stockQuantity + (movementData.movementType === 'in' ? movementData.quantity : -movementData.quantity)} units remaining)`,
+          { 
+            productId: product.id, 
+            productName: product.name, 
+            currentStock: product.stockQuantity + (movementData.movementType === 'in' ? movementData.quantity : -movementData.quantity), 
+            minStock: 5 
+          }
+        );
+      }
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error creating stock movement:", error);
+      res.status(500).json({ message: "Failed to create stock movement" });
+    }
+  });
+
+  // Sales routes
+  app.get('/api/sales', requireAuth, requirePermission("sales"), async (req, res) => {
     try {
       const sales = await storage.getSales();
       res.json(sales);
@@ -265,53 +438,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/sales', requireAuth, async (req: any, res) => {
+  app.post('/api/sales', requireAuth, requirePermission("sales"), async (req: any, res) => {
     try {
-      const saleData = insertSaleSchema.parse(req.body);
+      const saleData = insertSaleSchema.parse({
+        productId: Number(req.body.productId),
+        quantitySold: Number(req.body.quantitySold),
+        salePrice: req.body.salePrice,
+        totalAmount: (Number(req.body.quantitySold) * Number(req.body.salePrice)).toString(),
+        soldBy: req.user.username || req.user.email
+      });
 
       const result = await db.insert(sales).values({
-        productId: Number(saleData.productId),
-        quantity: Number(saleData.quantitySold),
-        unitPrice: Number(saleData.salePrice),
-        totalAmount: Number(saleData.quantitySold) * Number(saleData.salePrice),
-        employeeId: req.user!.id,
-        createdAt: new Date()
+        productId: saleData.productId,
+        quantitySold: saleData.quantitySold,
+        salePrice: saleData.salePrice,
+        totalAmount: saleData.totalAmount,
+        soldBy: saleData.soldBy,
+        timestamp: new Date()
       }).returning();
 
       // Update product stock
       await db.update(products)
         .set({ 
-          stock: sql`${products.stock} - ${saleData.quantitySold}`,
+          stockQuantity: sql`${products.stockQuantity} - ${saleData.quantitySold}`,
           updatedAt: new Date()
         })
-        .where(eq(products.id, Number(saleData.productId)));
+        .where(eq(products.id, saleData.productId));
 
       // Get product details for notification
-      const [product] = await db.select().from(products).where(eq(products.id, Number(saleData.productId)));
+      const [product] = await db.select().from(products).where(eq(products.id, saleData.productId));
 
       // Add new sale notification
       addNotification(
         'new_sale',
         'New Sale Recorded',
-        `Sale of ${product.name} for $${(Number(saleData.quantitySold) * Number(saleData.salePrice)).toFixed(2)} by ${req.user!.firstName || req.user!.email}`,
+        `Sale of ${product.name} for $${saleData.totalAmount} by ${saleData.soldBy}`,
         { 
           saleId: result[0].id, 
           productName: product.name, 
-          amount: Number(saleData.quantitySold) * Number(saleData.salePrice), 
-          employee: req.user!.firstName || req.user!.email 
+          amount: saleData.totalAmount, 
+          employee: saleData.soldBy 
         }
       );
 
       // Check if stock is low after sale
-      if (product.stock - Number(saleData.quantitySold) <= 5) {
+      if (product.stockQuantity - saleData.quantitySold <= 5) {
         addNotification(
           'low_stock',
           'Low Stock Alert',
-          `${product.name} is running low on stock (${product.stock - Number(saleData.quantitySold)} units remaining)`,
+          `${product.name} is running low on stock (${product.stockQuantity - saleData.quantitySold} units remaining)`,
           { 
             productId: product.id, 
             productName: product.name, 
-            currentStock: product.stock - Number(saleData.quantitySold), 
+            currentStock: product.stockQuantity - saleData.quantitySold, 
             minStock: 5 
           }
         );
@@ -324,36 +503,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Stock movement routes
-  app.get('/api/stock-movements', requireAuth, async (req, res) => {
+  // Reports routes
+  app.get("/api/reports/sales", requireAuth, requirePermission("view_reports"), async (req, res) => {
     try {
-      const movements = await storage.getStockMovements();
-      res.json(movements);
+      const report = await storage.getSalesReport();
+      res.json(report);
     } catch (error) {
-      console.error("Error fetching stock movements:", error);
-      res.status(500).json({ message: "Failed to fetch stock movements" });
+      console.error("Error fetching sales report:", error);
+      res.status(500).json({ message: "Failed to fetch sales report" });
     }
   });
 
-  app.post('/api/stock-movements', requireAuth, async (req: any, res) => {
+  app.get("/api/reports/inventory", requireAuth, requirePermission("view_reports"), async (req, res) => {
     try {
-      const movementData = insertStockMovementSchema.parse(req.body);
-      const movement = {
-        ...movementData,
-        performedBy: req.user.claims.sub,
-      };
-      const newMovement = await storage.createStockMovement(movement);
-      res.json(newMovement);
+      const report = await storage.getInventoryReport();
+      res.json(report);
     } catch (error) {
-      console.error("Error creating stock movement:", error);
-      res.status(500).json({ message: "Failed to create stock movement" });
+      console.error("Error fetching inventory report:", error);
+      res.status(500).json({ message: "Failed to fetch inventory report" });
     }
   });
 
-  // Reports
-  //app.get("/api/reports/sales", getSalesReport);
-  //app.get("/api/reports/inventory", getInventoryReport);
-  //app.get("/api/reports/low-stock", getLowStockReport);
+  app.get("/api/reports/low-stock", requireAuth, requirePermission("view_reports"), async (req, res) => {
+    try {
+      const report = await storage.getLowStockReport();
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching low stock report:", error);
+      res.status(500).json({ message: "Failed to fetch low stock report" });
+    }
+  });
 
   // Notifications
   app.get("/api/notifications", getNotifications);

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLogin, useRegister } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { useLogin, useRegister, useAuth } from "@/hooks/useAuth";
 import { loginSchema, registerSchema, type LoginData, type RegisterData } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +12,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Lock, Mail, User, Shield } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Login() {
   const [activeTab, setActiveTab] = useState("login");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
   
   const loginMutation = useLogin();
   const registerMutation = useRegister();
+  const { user, isAuthenticated, isLoading, error: authError } = useAuth();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      console.log("User authenticated, redirecting to dashboard...", { user, isAuthenticated });
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // Handle auth errors
+  useEffect(() => {
+    if (authError) {
+      console.error("Authentication error:", authError);
+      setError("Session expired. Please log in again.");
+    }
+  }, [authError]);
 
   const loginForm = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
@@ -42,20 +62,47 @@ export default function Login() {
   const onLogin = async (data: LoginData) => {
     setError("");
     try {
-      await loginMutation.mutateAsync(data);
+      console.log("Attempting login...");
+      const result = await loginMutation.mutateAsync(data);
+      console.log("Login successful:", result);
+      
+      // Force a refetch of the auth state
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"], exact: true });
+      
+      // Navigation will be handled by the useEffect when user data is loaded
     } catch (err: any) {
+      console.error("Login error:", err);
       setError(err.message || "Login failed");
+      // Clear password field on error
+      loginForm.setValue("password", "");
     }
   };
 
   const onRegister = async (data: RegisterData) => {
     setError("");
     try {
-      await registerMutation.mutateAsync(data);
+      console.log("Attempting registration...");
+      const result = await registerMutation.mutateAsync(data);
+      console.log("Registration successful:", result);
+      
+      setActiveTab("login"); // Switch to login tab after successful registration
+      loginForm.reset(); // Reset login form
     } catch (err: any) {
+      console.error("Registration error:", err);
       setError(err.message || "Registration failed");
+      // Clear password field on error
+      registerForm.setValue("password", "");
     }
   };
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
@@ -65,7 +112,7 @@ export default function Login() {
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center mb-4 shadow-lg">
             <Building2 className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">DukaSmart</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Luxe Systems</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">Enterprise Inventory Management</p>
         </div>
 
@@ -94,7 +141,7 @@ export default function Login() {
               <CardHeader>
                 <CardTitle className="text-xl">Welcome Back</CardTitle>
                 <CardDescription>
-                  Sign in to your DukaSmart account to manage your inventory
+                  Sign in to your Luxe Systems account to manage your inventory
                 </CardDescription>
               </CardHeader>
               <form onSubmit={loginForm.handleSubmit(onLogin)}>
@@ -149,7 +196,7 @@ export default function Login() {
               <CardHeader>
                 <CardTitle className="text-xl">Create Account</CardTitle>
                 <CardDescription>
-                  Join DukaSmart to start managing your business inventory
+                  Join Luxe Systems to start managing your business inventory
                 </CardDescription>
               </CardHeader>
               <form onSubmit={registerForm.handleSubmit(onRegister)}>
@@ -258,7 +305,7 @@ export default function Login() {
 
         <div className="text-center mt-8 text-sm text-gray-600 dark:text-gray-400">
           <p>Secure enterprise-grade inventory management system</p>
-          <p className="mt-1">© 2024 DukaSmart. All rights reserved.</p>
+          <p className="mt-1">© 2024 Luxe Systems. All rights reserved.</p>
         </div>
       </div>
     </div>
