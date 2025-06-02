@@ -1,146 +1,186 @@
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { useSidebar } from "@/contexts/sidebar-context";
 import { useAuth } from "@/hooks/useAuth";
+import { useSidebar } from "@/contexts/sidebar-context";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import {
+  Building2,
   LayoutDashboard,
   Package,
   Tags,
   ShoppingCart,
-  Store,
-  ArrowLeftRight,
-  Users,
+  Truck,
   BarChart3,
+  Users,
+  FileText,
   ChevronLeft,
   ChevronRight,
+  Settings,
+  User,
+  ArrowLeftRight,
+  ShoppingBag,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { NavLink } from "react-router-dom";
 
 const navigationItems = [
   {
-    name: "Dashboard",
-    href: "/",
+    title: "Dashboard",
+    href: "/dashboard",
     icon: LayoutDashboard,
-    show: true, // Everyone can see dashboard
   },
   {
-    name: "Products",
+    title: "Products",
     href: "/products",
     icon: Package,
-    show: true, // Everyone can see products
   },
   {
-    name: "Categories",
+    title: "Categories",
     href: "/categories",
     icon: Tags,
-    show: true, // Everyone can see categories
   },
   {
-    name: "Sales",
+    title: "Sales",
     href: "/sales",
     icon: ShoppingCart,
-    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("sales"),
   },
   {
-    name: "Purchases",
-    href: "/purchases",
-    icon: Store,
-    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("purchases"),
-  },
-  {
-    name: "Stock Movement",
+    title: "Stock Movement",
     href: "/stock-movement",
     icon: ArrowLeftRight,
-    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("stock_in"),
   },
   {
-    name: "Employees",
-    href: "/employees",
-    icon: Users,
-    show: (user: any) => user?.role === "admin",
+    title: "Purchases",
+    href: "/purchases",
+    icon: ShoppingBag,
   },
   {
-    name: "Reports",
+    title: "Reports",
     href: "/reports",
     icon: BarChart3,
-    show: (user: any) => user?.role === "admin" || user?.permissions?.includes("view_reports"),
+  },
+  {
+    title: "Users",
+    href: "/users",
+    icon: Users,
+    adminOnly: true,
   },
 ];
 
+const adminNavigation = [
+  { name: "Profile", href: "/profile", icon: User },
+  { name: "Settings", href: "/settings", icon: Settings },
+];
+
 export function Sidebar() {
-  const { isCollapsed, toggleSidebar } = useSidebar();
-  const location = useLocation();
+  const { isCollapsed, toggle } = useSidebar();
   const { user } = useAuth();
 
-  // Filter navigation items based on user role and permissions
-  const navigation = navigationItems.filter((item) => {
-    if (typeof item.show === "function") {
-      return item.show(user);
-    }
-    return item.show;
-  });
+  const isAdmin = user?.role === "admin";
 
   return (
-    <div
+    <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r transition-all duration-300",
+        "fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white transition-all duration-300",
         isCollapsed && "w-20"
       )}
     >
-      <div className="flex h-16 items-center justify-between px-4 border-b">
-        {!isCollapsed && (
-          <h1 className="text-xl font-semibold text-gray-900">Inventory</h1>
-        )}
+      <div className="flex h-16 items-center justify-between border-b px-4">
+        <div className="flex items-center gap-2">
+          <Building2 className={cn("h-6 w-6 text-blue-600", isCollapsed && "mx-auto")} />
+          {!isCollapsed && (
+            <span className="text-lg font-semibold text-gray-900">Luxe Systems</span>
+          )}
+        </div>
         <Button
           variant="ghost"
           size="icon"
-          onClick={toggleSidebar}
-          className="ml-auto"
+          onClick={toggle}
+          className="h-8 w-8"
         >
           {isCollapsed ? (
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-4 w-4" />
           ) : (
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-4 w-4" />
           )}
         </Button>
       </div>
 
-      <nav className="space-y-1 px-2 py-4">
-        {navigation.map((item) => {
-          const isActive = location.pathname === item.href;
-          return (
-            <Tooltip key={item.name}>
-              <TooltipTrigger asChild>
-                <Link
+      <ScrollArea className="h-[calc(100vh-4rem)]">
+        <nav className="space-y-1 p-2">
+          {navigationItems.map((item) => {
+            // For admin users, show all items
+            if (isAdmin) {
+              return (
+                <NavLink
+                  key={item.title}
                   to={item.href}
-                  className={cn(
-                    "group flex items-center rounded-md px-3 py-2 text-sm font-medium",
-                    isActive
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  )}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                      isCollapsed && "justify-center px-2"
+                    )
+                  }
                 >
-                  <item.icon
-                    className={cn(
-                      "h-5 w-5 flex-shrink-0",
-                      isActive ? "text-gray-900" : "text-gray-400 group-hover:text-gray-900"
-                    )}
-                  />
-                  {!isCollapsed && (
-                    <span className="ml-3">{item.name}</span>
-                  )}
-                </Link>
-              </TooltipTrigger>
-              {isCollapsed && (
-                <TooltipContent side="right">
-                  {item.name}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          );
-        })}
-      </nav>
-    </div>
+                  <item.icon className={cn("h-5 w-5", isCollapsed && "mx-auto")} />
+                  {!isCollapsed && <span>{item.title}</span>}
+                </NavLink>
+              );
+            }
+
+            // For non-admin users, check permissions
+            if (item.adminOnly && !isAdmin) {
+              return null;
+            }
+
+            return (
+              <NavLink
+                key={item.title}
+                to={item.href}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                    isCollapsed && "justify-center px-2"
+                  )
+                }
+              >
+                <item.icon className={cn("h-5 w-5", isCollapsed && "mx-auto")} />
+                {!isCollapsed && <span>{item.title}</span>}
+              </NavLink>
+            );
+          })}
+
+          {/* Admin Navigation */}
+          {isAdmin && (
+            <>
+              <div className={cn("my-2 border-t", isCollapsed ? "mx-2" : "mx-4")} />
+              {adminNavigation.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                      isCollapsed && "justify-center px-2"
+                    )
+                  }
+                >
+                  <item.icon className={cn("h-5 w-5", isCollapsed && "mx-auto")} />
+                  {!isCollapsed && <span>{item.name}</span>}
+                </NavLink>
+              ))}
+            </>
+          )}
+        </nav>
+      </ScrollArea>
+    </aside>
   );
 }

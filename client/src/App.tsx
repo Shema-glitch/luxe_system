@@ -81,7 +81,7 @@ export default function App() {
               
               {/* Protected routes with layout */}
               <Route
-                path="/"
+                path="/dashboard"
                 element={
                   <RouteGuard>
                     <AuthenticatedLayout>
@@ -153,7 +153,7 @@ export default function App() {
               />
 
               <Route
-                path="/employees"
+                path="/users"
                 element={
                   <RouteGuard>
                     <AuthenticatedLayout>
@@ -179,7 +179,7 @@ export default function App() {
               />
               
               {/* Catch all route */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Router>
           <Toaster />
