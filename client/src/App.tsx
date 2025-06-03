@@ -19,6 +19,9 @@ import StockMovement from "@/pages/stock-movement";
 import Employees from "@/pages/employees";
 import Reports from "@/pages/reports";
 import NotFound from "@/pages/not-found";
+import Profile from "@/pages/profile";
+import Settings from "@/pages/settings";
+import SearchResults from "@/pages/search-results";
 
 interface User {
   role: string;
@@ -173,6 +176,41 @@ export default function App() {
                       <ProtectedRoute requiredPermission="view_reports">
                         <Reports />
                       </ProtectedRoute>
+                    </AuthenticatedLayout>
+                  </RouteGuard>
+                }
+              />
+
+              {/* Profile and Settings routes */}
+              <Route
+                path="/profile"
+                element={
+                  <RouteGuard>
+                    <AuthenticatedLayout>
+                      <Profile />
+                    </AuthenticatedLayout>
+                  </RouteGuard>
+                }
+              />
+
+              <Route
+                path="/settings"
+                element={
+                  <RouteGuard>
+                    <AuthenticatedLayout>
+                      <Settings />
+                    </AuthenticatedLayout>
+                  </RouteGuard>
+                }
+              />
+
+              {/* Search route */}
+              <Route
+                path="/search"
+                element={
+                  <RouteGuard>
+                    <AuthenticatedLayout>
+                      <SearchResults />
                     </AuthenticatedLayout>
                   </RouteGuard>
                 }
