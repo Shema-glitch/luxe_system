@@ -33,7 +33,7 @@ export const users = pgTable("users", {
   passwordHash: varchar("password_hash").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  profile_image_url: varchar("profile_image_url"),
   role: varchar("role").notNull().default("employee"), // admin or employee
   permissions: jsonb("permissions").default([]), // array of permission strings
   isActive: boolean("is_active").default(true),

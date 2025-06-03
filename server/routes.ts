@@ -24,6 +24,7 @@ import {
   executeNotificationAction,
   addNotification 
 } from "./notifications";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup session middleware
@@ -102,7 +103,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: req.user.firstName,
         lastName: req.user.lastName,
         role: req.user.role,
-        permissions: req.user.permissions
+        permissions: req.user.permissions,
+        profile_image_url: req.user.profile_image_url
       });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -540,6 +542,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/notifications/:id", dismissNotification);
   app.patch("/api/notifications/mark-all-read", markAllAsRead);
   app.post("/api/notifications/:id/action", executeNotificationAction);
+
+  // Settings routes
+  app.post('/api/settings/avatar', requireAuth, async (req: any, res) => {
+    try {
+      if (!req.files || !req.files.avatar) {
+        return res.status(400).json({ message: "No avatar file uploaded" });
+      }
+
+      const file = req.files.avatar;
+      const fileName = `${req.user.id}-${Date.now()}-${file.name}`;
+      const uploadPath = path.join(process.cwd(), 'public', 'uploads', 'avatars', fileName);
+
+      // Move the file to the uploads directory
+      await file.mv(uploadPath);
+
+      // Update user's profile image URL in database
+      const imageUrl = `/uploads/avatars/${fileName}`;
+      await db
+        .update(users)
+        .set({ profile_image_url: imageUrl })
+        .where(eq(users.id, req.user.id));
+
+      res.json({ imageUrl });
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      res.status(500).json({ message: "Failed to upload avatar" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

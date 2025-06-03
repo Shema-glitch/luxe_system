@@ -8,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Globe, Lock, Mail, Palette, Shield, Store } from "lucide-react";
+import { Bell, Globe, Lock, Mail, Palette, Shield, Store, Camera, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -37,10 +38,12 @@ export default function Settings() {
       currency: "USD",
       timezone: "UTC",
     },
+    avatar: "",
   });
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch settings
-  const { data: currentSettings } = useQuery({
+  const { data: currentSettings, isLoading } = useQuery({
     queryKey: ["/api/settings"],
     queryFn: async () => {
       const response = await fetch("/api/settings");
@@ -78,6 +81,70 @@ export default function Settings() {
     e.preventDefault();
     updateSettings.mutate(settings);
   };
+
+  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Please upload an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "Image size should be less than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const response = await fetch("/api/settings/avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload avatar");
+      }
+
+      const data = await response.json();
+      
+      // Update settings with new avatar URL
+      await updateSettings.mutateAsync({
+        avatar: data.avatarUrl,
+      });
+
+      toast({
+        title: "Success",
+        description: "Profile picture updated successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to upload profile picture",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -421,6 +488,143 @@ export default function Settings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Picture</CardTitle>
+            <CardDescription>
+              Update your profile picture
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={settings.avatar} alt="Profile" />
+                  <AvatarFallback>
+                    {settings.firstName?.[0]}{settings.lastName?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+                {isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-full">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="avatar" className="cursor-pointer">
+                  <Button variant="outline" className="w-full">
+                    <Camera className="h-4 w-4 mr-2" />
+                    {isUploading ? "Uploading..." : "Change Picture"}
+                  </Button>
+                </Label>
+                <Input
+                  id="avatar"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleProfilePictureUpload}
+                  disabled={isUploading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  JPG, PNG or GIF (max. 5MB)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Account Settings</CardTitle>
+            <CardDescription>
+              Manage your account preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Email Notifications</Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive email notifications for important updates
+                </p>
+              </div>
+              <Switch
+                checked={settings.notifications.email}
+                onCheckedChange={(checked) =>
+                  setSettings({
+                    ...settings,
+                    notifications: { ...settings.notifications, email: checked },
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Two-Factor Authentication</Label>
+                <p className="text-sm text-muted-foreground">
+                  Add an extra layer of security to your account
+                </p>
+              </div>
+              <Switch
+                checked={settings.security.twoFactor}
+                onCheckedChange={(checked) =>
+                  setSettings({
+                    ...settings,
+                    security: { ...settings.security, twoFactor: checked },
+                  })
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Display Settings</CardTitle>
+            <CardDescription>
+              Customize how the application looks
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Dark Mode</Label>
+                <p className="text-sm text-muted-foreground">
+                  Switch between light and dark themes
+                </p>
+              </div>
+              <Switch
+                checked={settings.appearance.theme === "dark"}
+                onCheckedChange={(checked) =>
+                  setSettings({
+                    ...settings,
+                    appearance: { ...settings.appearance, theme: checked ? "dark" : "light" },
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Compact Mode</Label>
+                <p className="text-sm text-muted-foreground">
+                  Show more content in less space
+                </p>
+              </div>
+              <Switch
+                checked={settings.appearance.compactMode}
+                onCheckedChange={(checked) =>
+                  setSettings({
+                    ...settings,
+                    appearance: { ...settings.appearance, compactMode: checked },
+                  })
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 } 

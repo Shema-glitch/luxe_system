@@ -61,21 +61,44 @@ export default function Profile() {
   const uploadImage = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
-      formData.append("image", file);
-      const response = await apiRequest("POST", "/api/users/avatar", formData);
-      return response.json();
+      formData.append("avatar", file);
+      
+      // First upload the image
+      const uploadResponse = await fetch("/api/settings/avatar", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json().catch(() => ({ message: "Failed to upload image" }));
+        throw new Error(error.message);
+      }
+
+      const { imageUrl } = await uploadResponse.json();
+
+      // Then update the user's profile with the new image URL
+      const updateResponse = await apiRequest("PATCH", "/api/users/profile", {
+        profile_image_url: imageUrl
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error("Failed to update profile with new image");
+      }
+
+      return updateResponse.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
       toast({
         title: "Success",
         description: "Profile image updated successfully",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: "Failed to update profile image",
+        description: error.message || "Failed to update profile image",
         variant: "destructive",
       });
     },
@@ -83,9 +106,29 @@ export default function Profile() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      uploadImage.mutate(file);
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Please upload an image file",
+        variant: "destructive",
+      });
+      return;
     }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "Image size should be less than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    uploadImage.mutate(file);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -122,7 +165,11 @@ export default function Profile() {
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <Avatar className="h-24 w-24">
-                      <AvatarImage src={user?.avatar} alt={user?.username} />
+                      <AvatarImage 
+                        src={user?.profile_image_url} 
+                        alt={user?.username} 
+                        className="object-cover"
+                      />
                       <AvatarFallback className="text-lg">
                         {user?.firstName?.[0]}{user?.lastName?.[0]}
                       </AvatarFallback>

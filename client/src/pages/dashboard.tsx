@@ -14,9 +14,11 @@ import {
   Plus, 
   ShoppingCart, 
   ArrowUpDown, 
-  Truck 
+  Truck,
+  Loader2
 } from "lucide-react";
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardStats {
   totalProducts: number;
@@ -50,15 +52,15 @@ export default function Dashboard() {
   const [showRecordPurchase, setShowRecordPurchase] = useState(false);
   const [showStockMovement, setShowStockMovement] = useState(false);
 
-  const { data: stats } = useQuery<DashboardStats>({
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: recentSales = [] } = useQuery<Sale[]>({
+  const { data: recentSales = [], isLoading: salesLoading } = useQuery<Sale[]>({
     queryKey: ["/api/sales/recent"],
   });
 
-  const { data: lowStockProducts = [] } = useQuery<Product[]>({
+  const { data: lowStockProducts = [], isLoading: lowStockLoading } = useQuery<Product[]>({
     queryKey: ["/api/products/low-stock"],
   });
 
@@ -81,10 +83,21 @@ export default function Dashboard() {
     return date.toLocaleDateString();
   };
 
+  const isLoading = statsLoading || salesLoading || lowStockLoading;
+
   return (
     <div className="space-y-6">
-          {/* Dashboard Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Dashboard Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-[125px]" />
+            <Skeleton className="h-[125px]" />
+            <Skeleton className="h-[125px]" />
+            <Skeleton className="h-[125px]" />
+          </>
+        ) : (
+          <>
             <Card className="bg-white border-0 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -154,161 +167,175 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </>
+        )}
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Recent Sales */}
-            <Card className="bg-white border-0 shadow-sm">
-              <CardHeader className="border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-semibold text-gray-900">Recent Sales</CardTitle>
-                  <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80">
-                    View All
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                {recentSales.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No recent sales found
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {recentSales.slice(0, 5).map((sale) => (
-                      <div key={sale.id} className="flex items-center space-x-4 py-3 border-b border-gray-100 last:border-b-0">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <Package className="h-6 w-6 text-gray-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            Product ID: {sale.productId}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Qty: {sale.quantitySold} × {formatCurrency(sale.salePrice)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatCurrency(sale.totalAmount)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatTimeAgo(sale.timestamp)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Low Stock Alerts */}
-            <Card className="bg-white border-0 shadow-sm">
-              <CardHeader className="border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-semibold text-gray-900">Low Stock Alerts</CardTitle>
-                  <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                    {lowStockProducts.length} items
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                {lowStockProducts.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    All products are well stocked
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {lowStockProducts.slice(0, 5).map((product) => (
-                      <div key={product.id} className="flex items-center space-x-4 py-3 border-b border-gray-100 last:border-b-0">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                          {product.imageUrl ? (
-                            <img 
-                              src={product.imageUrl} 
-                              alt={product.name}
-                              className="w-12 h-12 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <Package className="h-6 w-6 text-gray-600" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {product.name} ({product.productCode})
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Price: {formatCurrency(product.price)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <Badge 
-                            variant={product.stockQuantity <= 2 ? "destructive" : "secondary"}
-                            className={product.stockQuantity <= 2 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"}
-                          >
-                            {product.stockQuantity} left
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick Actions Section */}
-          <Card className="bg-white border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-gray-900">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button
-                  variant="outline"
-                  className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
-                  onClick={() => setShowAddProduct(true)}
-                >
-                  <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-3">
-                    <Plus className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">Add Product</span>
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
-                  onClick={() => setShowRecordSale(true)}
-                >
-                  <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-3">
-                    <ShoppingCart className="h-6 w-6 text-green-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">Record Sale</span>
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
-                  onClick={() => setShowStockMovement(true)}
-                >
-                  <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center mb-3">
-                    <ArrowUpDown className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">Stock Movement</span>
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
-                  onClick={() => setShowRecordPurchase(true)}
-                >
-                  <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center mb-3">
-                    <Truck className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">Record Purchase</span>
-                </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Recent Sales */}
+        <Card className="bg-white border-0 shadow-sm">
+          <CardHeader className="border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-900">Recent Sales</CardTitle>
+              <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80">
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-[60px]" />
+                <Skeleton className="h-[60px]" />
+                <Skeleton className="h-[60px]" />
               </div>
-            </CardContent>
-          </Card>
+            ) : recentSales.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No recent sales found
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentSales.slice(0, 5).map((sale) => (
+                  <div key={sale.id} className="flex items-center space-x-4 py-3 border-b border-gray-100 last:border-b-0">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Package className="h-6 w-6 text-gray-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        Product ID: {sale.productId}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Qty: {sale.quantitySold} × {formatCurrency(sale.salePrice)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatCurrency(sale.totalAmount)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatTimeAgo(sale.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Low Stock Alerts */}
+        <Card className="bg-white border-0 shadow-sm">
+          <CardHeader className="border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-900">Low Stock Alerts</CardTitle>
+              <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                {lowStockProducts.length} items
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-[60px]" />
+                <Skeleton className="h-[60px]" />
+                <Skeleton className="h-[60px]" />
+              </div>
+            ) : lowStockProducts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                All products are well stocked
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {lowStockProducts.slice(0, 5).map((product) => (
+                  <div key={product.id} className="flex items-center space-x-4 py-3 border-b border-gray-100 last:border-b-0">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                      {product.imageUrl ? (
+                        <img 
+                          src={product.imageUrl} 
+                          alt={product.name}
+                          className="w-12 h-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <Package className="h-6 w-6 text-gray-600" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {product.name} ({product.productCode})
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Price: {formatCurrency(product.price)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <Badge 
+                        variant={product.stockQuantity <= 2 ? "destructive" : "secondary"}
+                        className={product.stockQuantity <= 2 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"}
+                      >
+                        {product.stockQuantity} left
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions Section */}
+      <Card className="bg-white border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-gray-900">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button
+              variant="outline"
+              className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
+              onClick={() => setShowAddProduct(true)}
+            >
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-3">
+                <Plus className="h-6 w-6 text-blue-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-900">Add Product</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
+              onClick={() => setShowRecordSale(true)}
+            >
+              <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-3">
+                <ShoppingCart className="h-6 w-6 text-green-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-900">Record Sale</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
+              onClick={() => setShowStockMovement(true)}
+            >
+              <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center mb-3">
+                <ArrowUpDown className="h-6 w-6 text-purple-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-900">Stock Movement</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              className="flex flex-col items-center p-6 h-auto border-gray-200 hover:bg-gray-50"
+              onClick={() => setShowRecordPurchase(true)}
+            >
+              <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center mb-3">
+                <Truck className="h-6 w-6 text-orange-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-900">Record Purchase</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Modals */}
       <AddProductModal 

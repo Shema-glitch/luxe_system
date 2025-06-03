@@ -1,58 +1,68 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
-import { addDays } from "date-fns";
+import { addDays, subDays, format } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
-import { Download, FileText, TrendingUp, Package, DollarSign, AlertTriangle } from "lucide-react";
+import { Download, FileText, TrendingUp, Package, DollarSign, AlertTriangle, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
 export default function Reports() {
-  const [dateRange, setDateRange] = useState({
-    from: addDays(new Date(), -30),
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: subDays(new Date(), 30),
     to: new Date(),
   });
   const [reportType, setReportType] = useState("sales");
 
   // Fetch sales data
-  const { data: salesData = [] } = useQuery({
+  const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ["/api/reports/sales", dateRange],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/reports/sales?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch sales data");
-      return response.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/reports/sales?start=${dateRange.from?.toISOString()}&end=${dateRange.to?.toISOString()}`),
   });
 
   // Fetch inventory data
-  const { data: inventoryData = [] } = useQuery({
-    queryKey: ["/api/reports/inventory"],
-    queryFn: async () => {
-      const response = await fetch("/api/reports/inventory");
-      if (!response.ok) throw new Error("Failed to fetch inventory data");
-      return response.json();
-    },
+  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
+    queryKey: ["/api/reports/inventory", dateRange],
+    queryFn: () => apiRequest("GET", `/api/reports/inventory?start=${dateRange.from?.toISOString()}&end=${dateRange.to?.toISOString()}`),
   });
 
-  // Fetch low stock data
-  const { data: lowStockData = [] } = useQuery({
-    queryKey: ["/api/reports/low-stock"],
-    queryFn: async () => {
-      const response = await fetch("/api/reports/low-stock");
-      if (!response.ok) throw new Error("Failed to fetch low stock data");
-      return response.json();
-    },
+  // Fetch purchase data
+  const { data: purchaseData, isLoading: purchaseLoading } = useQuery({
+    queryKey: ["/api/reports/purchases", dateRange],
+    queryFn: () => apiRequest("GET", `/api/reports/purchases?start=${dateRange.from?.toISOString()}&end=${dateRange.to?.toISOString()}`),
   });
 
-  const handleExport = (type: string) => {
-    // Implement export functionality
-    console.log(`Exporting ${type} report...`);
+  const isLoading = salesLoading || inventoryLoading || purchaseLoading;
+
+  const handleExport = async (type: string) => {
+    try {
+      const response = await fetch(`/api/reports/export/${type}?start=${dateRange.from?.toISOString()}&end=${dateRange.to?.toISOString()}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(value);
   };
 
   return (
@@ -65,305 +75,277 @@ export default function Reports() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <DatePickerWithRange
-            date={dateRange}
-            onDateChange={setDateRange}
-          />
-          <Button onClick={() => handleExport(reportType)}>
-            <Download className="mr-2 h-4 w-4" />
+          <Select value={reportType} onValueChange={setReportType}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select report type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sales">Sales Report</SelectItem>
+              <SelectItem value="inventory">Inventory Report</SelectItem>
+              <SelectItem value="purchases">Purchase Report</SelectItem>
+            </SelectContent>
+          </Select>
+          <DatePickerWithRange date={dateRange} onDateChange={setDateRange} />
+          <Button onClick={() => handleExport(reportType)} disabled={isLoading}>
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
             Export
           </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="sales" className="space-y-4" onValueChange={setReportType}>
+      <Tabs value={reportType} onValueChange={setReportType}>
         <TabsList>
-          <TabsTrigger value="sales">
-            <DollarSign className="mr-2 h-4 w-4" />
-            Sales
-          </TabsTrigger>
-          <TabsTrigger value="inventory">
-            <Package className="mr-2 h-4 w-4" />
-            Inventory
-          </TabsTrigger>
-          <TabsTrigger value="low-stock">
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Low Stock
-          </TabsTrigger>
+          <TabsTrigger value="sales">Sales</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="purchases">Purchases</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sales" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$45,231.89</div>
-                <p className="text-xs text-muted-foreground">
-                  +20.1% from last month
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">+2350</div>
-                <p className="text-xs text-muted-foreground">
-                  +180.1% from last month
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Average Order Value</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$19.25</div>
-                <p className="text-xs text-muted-foreground">
-                  +4.75% from last month
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">+573</div>
-                <p className="text-xs text-muted-foreground">
-                  +201 since last month
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales Overview</CardTitle>
-              <CardDescription>
-                Daily sales data for the selected period
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={salesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="sales"
-                      stroke="#8884d8"
-                      name="Sales"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="orders"
-                      stroke="#82ca9d"
-                      name="Orders"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-[400px] w-full" />
+              <div className="grid gap-4 md:grid-cols-2">
+                <Skeleton className="h-[200px]" />
+                <Skeleton className="h-[200px]" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Sales Overview</CardTitle>
+                  <CardDescription>
+                    Total sales: {formatCurrency(salesData?.totalSales || 0)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={salesData?.overview}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                        <Line type="monotone" dataKey="amount" stroke="#8884d8" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Selling Products</CardTitle>
-                <CardDescription>
-                  Products with highest sales volume
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={salesData.slice(0, 5)}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="sales" fill="#8884d8" name="Sales" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Selling Products</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={salesData?.topProducts}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="quantity" fill="#8884d8" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Sales by Category</CardTitle>
-                <CardDescription>
-                  Distribution of sales across categories
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={salesData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label
-                      >
-                        {salesData.map((entry: any, index: number) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Sales by Category</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={salesData?.categoryDistribution}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label
+                          >
+                            {salesData?.categoryDistribution.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="inventory" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Inventory Status</CardTitle>
-              <CardDescription>
-                Current inventory levels and value
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={inventoryData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="quantity" fill="#8884d8" name="Quantity" />
-                    <Bar dataKey="value" fill="#82ca9d" name="Value" />
-                  </BarChart>
-                </ResponsiveContainer>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-[400px] w-full" />
+              <div className="grid gap-4 md:grid-cols-2">
+                <Skeleton className="h-[200px]" />
+                <Skeleton className="h-[200px]" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Stock Levels</CardTitle>
+                  <CardDescription>
+                    Total inventory value: {formatCurrency(inventoryData?.totalValue || 0)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={inventoryData?.stockLevels}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="quantity" fill="#8884d8" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Stock Value by Category</CardTitle>
-                <CardDescription>
-                  Distribution of inventory value
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={inventoryData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label
-                      >
-                        {inventoryData.map((entry: any, index: number) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Low Stock Items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {inventoryData?.lowStock.map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between">
+                          <span>{item.name}</span>
+                          <span className="text-red-500">{item.quantity} remaining</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Inventory Turnover</CardTitle>
-                <CardDescription>
-                  How quickly inventory is sold
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={inventoryData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="turnover"
-                        stroke="#8884d8"
-                        name="Turnover Rate"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Stock Movement</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={inventoryData?.movement}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="in" stroke="#00C49F" />
+                          <Line type="monotone" dataKey="out" stroke="#FF8042" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </TabsContent>
 
-        <TabsContent value="low-stock" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Low Stock Alerts</CardTitle>
-              <CardDescription>
-                Products that need restocking
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {lowStockData.map((item: any) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between rounded-lg border p-4"
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Current Stock: {item.quantity}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-muted-foreground">
-                        Reorder Point: {item.reorderPoint}
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Order More
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+        <TabsContent value="purchases" className="space-y-4">
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-[400px] w-full" />
+              <div className="grid gap-4 md:grid-cols-2">
+                <Skeleton className="h-[200px]" />
+                <Skeleton className="h-[200px]" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Purchase Overview</CardTitle>
+                  <CardDescription>
+                    Total purchases: {formatCurrency(purchaseData?.totalPurchases || 0)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={purchaseData?.overview}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                        <Line type="monotone" dataKey="amount" stroke="#8884d8" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Suppliers</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={purchaseData?.topSuppliers}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                          <Bar dataKey="amount" fill="#8884d8" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Purchase by Category</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={purchaseData?.categoryDistribution}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label
+                          >
+                            {purchaseData?.categoryDistribution.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>
